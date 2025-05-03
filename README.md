@@ -35,13 +35,14 @@ Through this project, I am gaining hands-on experience with:
 - Respect the RESP protocol for communication
 - Write clean, modular, and well-documented code
 - Make it easy to extend with new commands or features
+- Make it with non-blocking I/O using `poll`
 
 ## Future Improvements
 
 - Add support for more advanced data types (sorted sets, pub/sub, etc.)
 - Implement persistence (AOF/RDB-style storage)
 - Add replication and clustering support
-- Improve performance with non-blocking I/O (e.g., using `select`, `poll`, or even async frameworks)
+
 
 ## How to Run
 
