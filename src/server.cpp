@@ -16,6 +16,11 @@
 #include <vector>
 #include <map>
 
+#include "hashtable.h"
+
+#define container_of(ptr, T, member) \
+    ((T*)((char*)ptr - offsetof(T, member)))
+
 using namespace std;
 
 const size_t k_max_msg = 32 << 20;
@@ -132,21 +137,88 @@ static int32_t parse_req(const uint8_t* data, size_t size, vector<string> &out) 
     return 0;
 }
 
-static map<string, string> g_data; // Later
+static struct {
+    HMap db;
+} g_data; 
+
+struct Entry {
+    struct HNode node;
+    string key;
+    string val;
+}
+
+static bool entry_eq(HNode* lhs, HNode rhs) {
+    struct Entry* le = container_of(lhs, struct Entry, node);
+    struct Entry* re = container_of(rhs, struct Entry, node);
+    return le->key == re->key;
+}
+
+static uint64_t str_hash(const uint8_t* data, size_t len) {
+    uint32_t h = 0x811C9DC5;
+    for(size_t i = 0; i < len; i++) h = (h + data[i]) * 0x01000193;
+    return h;
+}
+
+static void do_get(vector<string> &cmd, Response &resp) {
+    // An entry for the lookup
+    Entry key;
+    key.key.swap(cmd[1]);
+    key.node.hcode = str_hash((uint8_t*)key.key.data(), key.key.size());
+
+    // Lookup the key
+    HNode* node = hm_lookup(&g_data.db, &key.node, &entry_eq);
+    if (!node) { 
+        resp.status = RES_NX;
+        return;
+    }
+
+    // We have found the key, we copy the value to be sent back
+    const string &val = container_of(node, Entry, node)->val;
+    assert(val.size() <= k_max_msg);
+    resp.data.assign(val.begin(), val.end());
+}
+
+static void do_set(std::vector<std::string> &cmd, Response &) {
+    Entry key;
+    key.key.swap(cmd[1]);
+    key.node.hcode = str_hash((uint8_t *)key.key.data(), key.key.size());
+    
+    HNode *node = hm_lookup(&g_data.db, &key.node, &entry_eq);
+    if (node) {
+        // Update the value if the key already exist
+        container_of(node, Entry, node)->val.swap(cmd[2]);
+    } else {
+        // Otherwise, create a new entry and insert it into the table
+        Entry *ent = new Entry();
+        ent->key.swap(key.key);
+        ent->node.hcode = key.node.hcode;
+        ent->val.swap(cmd[2]);
+        hm_insert(&g_data.db, &ent->node);
+    }
+}
+
+static void do_del(std::vector<std::string> &cmd, Response &) {
+    Entry key;
+    key.key.swap(cmd[1]);
+    key.node.hcode = str_hash((uint8_t *)key.key.data(), key.key.size());
+
+    // Delete the entry
+    HNode *node = hm_delete(&g_data.db, &key.node, &entry_eq);
+    if (node) { // deallocate the pair
+        delete container_of(node, Entry, node);
+    }
+}
 
 static void do_request(vector<string> &cmd, Response &resp) {
     if(cmd.size() == 2 && cmd[0] == "get") {
-        auto it = g_data.find(cmd[1]);
-        if(it == g_data.end()) {
-            resp.status = RES_NX;
-            return;
-        }
-
-        const string &val = it->second;
-        resp.data.assign(val.begin(), val.end());
-    } else if(cmd.size() == 3 && cmd[0] == "set") g_data[cmd[1]].swap(cmd[2]);
-    else if(cmd.size() == 2 && cmd[0] == "del") g_data.erase(cmd[1]);
-    else resp.status = RES_ERR;
+        do_get(cmd, resp);
+    } else if(cmd.size() == 3 && cmd[0] == "set") {
+        do_set(cmd, resp);
+    }
+    else if(cmd.size() == 2 && cmd[0] == "del") {
+        return do_del(cmd, resp);
+    }
+    else resp.status = RES_ERR; // Unrecognized command
 }
 
 static void make_response(Response &resp, vector<uint8_t> &out) {
@@ -157,9 +229,10 @@ static void make_response(Response &resp, vector<uint8_t> &out) {
 }
 
 static bool try_one_request(Conn* conn) {
+    // We want at least 4 bytes for the length of the 
+    // message
     if(conn->incoming.size() < 4) return false;
 
-    // Copy the length of the incoming message
     uint32_t len;
     memcpy(&len, conn->incoming.data(), 4);
 
@@ -172,11 +245,6 @@ static bool try_one_request(Conn* conn) {
     if (4 + len > conn->incoming.size()) return false;
 
     const uint8_t* request = &conn->incoming[4];
-
-    // Process parsed message (will be implemented later)
-    printf("client says: len:%d data:%.*s\n",
-        len, len < 100 ? len : 100, request);
-
     vector<string> cmd;
     if(parse_req(request, len, cmd) < 0) {
         conn->want_close = true;
@@ -186,7 +254,7 @@ static bool try_one_request(Conn* conn) {
     do_request(cmd, resp);
     make_response(resp, conn->outgoing);
 
-    // Remove the message from incoming, consume the message
+    // Consume the request once treated
     buf_consume(conn->incoming, 4 + len);
     return true;
 }
