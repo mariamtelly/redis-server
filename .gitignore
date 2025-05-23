@@ -36,3 +36,4 @@ LICENSE
 exe
 DEVLOG.md
 .vscode
+avl_test.cpp
