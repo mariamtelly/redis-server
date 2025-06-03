@@ -37,3 +37,7 @@ exe
 DEVLOG.md
 .vscode
 avl_test.cpp
+offset_test.cpp
+cmds_test.py
+client
+server

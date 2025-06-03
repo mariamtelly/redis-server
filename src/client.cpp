@@ -226,7 +226,7 @@ static int32_t read_res(int fd) {
 }
 
 int main(int argc, char** argv) {
-    printf("argc %d\n", argc);
+    // printf("argc %d\n", argc);
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
         die("socket()");
@@ -241,9 +241,9 @@ int main(int argc, char** argv) {
 
     std::vector<std::string> cmd;
     for(int i = 1; i < argc; ++i) {
-        printf("i = %d\n", i);
+        // printf("i = %d\n", i);
+        // printf("cmd[%d] : %s\n", i - 1, argv[i]);
         cmd.push_back(argv[i]);
-        printf("cmd[%d] : %s\n", i - 1, argv[i]);
     }
 
     int32_t err = send_req(fd, cmd);
