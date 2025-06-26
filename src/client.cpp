@@ -241,8 +241,6 @@ int main(int argc, char** argv) {
 
     std::vector<std::string> cmd;
     for(int i = 1; i < argc; ++i) {
-        // printf("i = %d\n", i);
-        // printf("cmd[%d] : %s\n", i - 1, argv[i]);
         cmd.push_back(argv[i]);
     }
 

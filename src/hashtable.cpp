@@ -1,15 +1,17 @@
 #include <assert.h>
-#include <stdlib.h>    
+#include <stdlib.h>     // calloc(), free()
 #include "hashtable.h"
 
 
+// n must be a power of 2
 static void h_init(HTab *htab, size_t n) {
-    assert(n > 0 && ((n - 1) & n) == 0); // n must be a power of 2
+    assert(n > 0 && ((n - 1) & n) == 0);
     htab->tab = (HNode **)calloc(n, sizeof(HNode *));
     htab->mask = n - 1;
     htab->size = 0;
 }
 
+// hashtable insertion
 static void h_insert(HTab *htab, HNode *node) {
     size_t pos = node->hcode & htab->mask;
     HNode *next = htab->tab[pos];
@@ -123,9 +125,13 @@ size_t hm_size(HMap *hmap) {
 }
 
 static bool h_foreach(HTab *htab, bool (*f)(HNode *, void *), void *arg) {
-    for (size_t i = 0; htab->mask != 0 && i <= htab->mask; i++)
-        for (HNode *node = htab->tab[i]; node != NULL; node = node->next) 
-            if (!f(node, arg)) return false;
+    for (size_t i = 0; htab->mask != 0 && i <= htab->mask; i++) {
+        for (HNode *node = htab->tab[i]; node != NULL; node = node->next) {
+            if (!f(node, arg)) {
+                return false;
+            }
+        }
+    }
     return true;
 }
 
