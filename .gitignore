@@ -36,8 +36,7 @@ LICENSE
 exe
 DEVLOG.md
 .vscode
-avl_test.cpp
-offset_test.cpp
-cmds_test.py
+*_test.*
 client
 server
+binaries
