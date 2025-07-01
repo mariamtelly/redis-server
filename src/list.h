@@ -2,7 +2,6 @@
 
 #include <stddef.h>
 
-
 struct DList {
     DList *prev = NULL;
     DList *next = NULL;

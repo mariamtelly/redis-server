@@ -23,6 +23,8 @@
 #include "zset.h"
 #include "list.h"
 #include "heap.h"
+#include "thread_pool.h"
+
 
 static void msg(const char *msg) {
     fprintf(stderr, "%s\n", msg);
@@ -89,13 +91,15 @@ struct Conn {
 
 // global states
 static struct {
-     HMap db;
+    HMap db;
     // a map of all client connections, keyed by fd
     std::vector<Conn *> fd2conn;
     // timers for idle connections
     DList idle_list;
     // timers for TTLs
     std::vector<HeapItem> heap;
+    // the thread pool
+    TheadPool thread_pool;
 } g_data;
 
 // application callback when the listening socket is ready
@@ -270,10 +274,10 @@ enum {
 
 // KV pair for the top-level hashtable
 struct Entry {
-    struct HNode node;  // hashtable node
+    struct HNode node;      // hashtable node
     std::string key;
-    // For TTL
-    size_t heap_idx = -1; // indice de l'entrée dans le tas
+    // for TTL
+    size_t heap_idx = -1;   // array index to the heap item
     // value
     uint32_t type = 0;
     // one of the following
@@ -289,12 +293,28 @@ static Entry *entry_new(uint32_t type) {
 
 static void entry_set_ttl(Entry *ent, int64_t ttl_ms);
 
-static void entry_del(Entry *ent) {
+static void entry_del_sync(Entry *ent) {
     if (ent->type == T_ZSET) {
         zset_clear(&ent->zset);
     }
-    entry_set_ttl(ent, -1); // remove from the heap data structure
     delete ent;
+}
+
+static void entry_del_func(void *arg) {
+    entry_del_sync((Entry *)arg);
+}
+
+static void entry_del(Entry *ent) {
+    // unlink it from any data structures
+    entry_set_ttl(ent, -1); // remove from the heap data structure
+    // run the destructor in a thread pool for large data structures
+    size_t set_size = (ent->type == T_ZSET) ? hm_size(&ent->zset.hmap) : 0;
+    const size_t k_large_container_size = 1000;
+    if (set_size > k_large_container_size) {
+        thread_pool_queue(&g_data.thread_pool, &entry_del_func, ent);
+    } else {
+        entry_del_sync(ent);    // small; avoid context switches
+    }
 }
 
 struct LookupKey {
@@ -399,24 +419,6 @@ static void entry_set_ttl(Entry *ent, int64_t ttl_ms) {
     }
 }
 
-static bool cb_keys(HNode *node, void *arg) {
-    Buffer &out = *(Buffer *)arg;
-    const std::string &key = container_of(node, Entry, node)->key;
-    out_str(out, key.data(), key.size());
-    return true;
-}
-
-static void do_keys(std::vector<std::string> &, Buffer &out) {
-    out_arr(out, (uint32_t)hm_size(&g_data.db));
-    hm_foreach(&g_data.db, &cb_keys, (void *)&out);
-}
-
-static bool str2dbl(const std::string &s, double &out) {
-    char *endp = NULL;
-    out = strtod(s.c_str(), &endp);
-    return endp == s.c_str() + s.size() && !isnan(out);
-}
-
 static bool str2int(const std::string &s, int64_t &out) {
     char *endp = NULL;
     out = strtoll(s.c_str(), &endp, 10);
@@ -461,6 +463,24 @@ static void do_ttl(std::vector<std::string> &cmd, Buffer &out) {
     uint64_t expire_at = g_data.heap[ent->heap_idx].val;
     uint64_t now_ms = get_monotonic_msec();
     return out_int(out, expire_at > now_ms ? (expire_at - now_ms) : 0);
+}
+
+static bool cb_keys(HNode *node, void *arg) {
+    Buffer &out = *(Buffer *)arg;
+    const std::string &key = container_of(node, Entry, node)->key;
+    out_str(out, key.data(), key.size());
+    return true;
+}
+
+static void do_keys(std::vector<std::string> &, Buffer &out) {
+    out_arr(out, (uint32_t)hm_size(&g_data.db));
+    hm_foreach(&g_data.db, &cb_keys, (void *)&out);
+}
+
+static bool str2dbl(const std::string &s, double &out) {
+    char *endp = NULL;
+    out = strtod(s.c_str(), &endp);
+    return endp == s.c_str() + s.size() && !isnan(out);
 }
 
 // zadd zset score name
@@ -722,7 +742,7 @@ static void handle_read(Conn *conn) {
 
 const uint64_t k_idle_timeout_ms = 5 * 1000;
 
-static int32_t next_timer_ms() {
+static uint32_t next_timer_ms() {
     uint64_t now_ms = get_monotonic_msec();
     uint64_t next_ms = (uint64_t)-1;
     // idle timers using a linked list
@@ -782,6 +802,7 @@ static void process_timers() {
 int main() {
     // initialization
     dlist_init(&g_data.idle_list);
+    thread_pool_init(&g_data.thread_pool, 4);
 
     // the listening socket
     int fd = socket(AF_INET, SOCK_STREAM, 0);
