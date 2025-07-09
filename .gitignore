@@ -36,7 +36,6 @@ LICENSE
 exe
 DEVLOG.md
 .vscode
-*_test.*
 client
 server
 binaries

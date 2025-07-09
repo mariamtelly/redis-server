@@ -1,49 +1,85 @@
 # Redis Server From Scratch
 
-## About This Project
+## 📚 About This Project
 
-This project is about building a **Redis server from scratch**, without using any existing Redis library or framework.  
-Why? Because **if you can build a Redis server, you can build almost any software**. Redis touches two essential areas of computer science:
+This project is a from-scratch reimplementation of a **Redis-like in-memory database server**, written in **C++**, using **no third-party Redis libraries or frameworks**.
 
-- **Network programming** (sockets, protocols, client/server architecture)
-- **Data structures** (hash tables, linked lists, sets, etc.)
+Redis is a powerful system that combines **network programming**, **data structures**, **asynchronous concurrency**, and **high-performance design**. By rebuilding it, this project became a deep dive into:
 
-By recreating Redis, I aim to deeply understand these core concepts, not just at a theoretical level but through real, working code.
+- Low-level **system programming**,
+- High-level **software architecture**,
+- And practical, production-inspired **performance engineering**.
 
-## Why Start From Scratch?
+## 🧠 What I've Built
 
-To quote physicist Richard Feynman:  
-> "What I cannot create, I do not understand."
+- 🔌 A **non-blocking, event-driven TCP server**, using `poll()` for IO multiplexing.
+- 📡 A **binary protocol**, with custom serialization and deserialization of requests and responses.
+- 🧠 An extensible **command execution engine** that supports several Redis-like commands.
+- 📦 A hash-based **key-value store** (`SET`, `GET`, `DEL`, `EXISTS`, `PING`, `ECHO`).
+- 🧮 A **sorted set data type (ZSet)** using an **AVL tree** (for ordered iteration / offset queries) and a **hashtable** (for fast lookups).
+- 🕒 A **TTL (time-to-live)** mechanism with expiration timers via a **min-heap**.
+- ⏳ **Idle connection timeouts** using a **doubly-linked list** based timer queue.
+- 🧵 A **thread pool** to offload heavy operations (like large set destruction) without blocking the event loop.
 
-Building something from scratch forces you to truly grasp its inner workings — no shortcuts, no magic. It’s the ultimate learning tool.
+## ⚙️ Commands Supported
 
-## What I Am Learning
+| Command     | Description                                                |
+|-------------|------------------------------------------------------------|
+| `SET key val`   | Set a key-value pair                                    |
+| `GET key`       | Retrieve a value by key                                 |
+| `DEL key`       | Delete a key                                            |
+| `EXISTS key`    | Check if a key exists                                   |
+| `EXPIRE key ms` | Set a time-to-live (in ms) for a key                    |
+| `TTL key`       | Get remaining TTL in ms                                 |
+| `PERSIST key`   | Remove TTL and make the key permanent                   |
+| `ZADD zset score member` | Insert or update a member in a sorted set     |
+| `ZREM zset member`       | Remove a member from a sorted set              |
+| `ZSCORE zset member`     | Get the score of a member                      |
+| `ZQUERY zset min prefix offset limit` | Query sorted set by range        |
 
-Through this project, I am gaining hands-on experience with:
+> 🧪 All of these are tested using a Python test script with expected outputs.
 
-- **Socket programming**: handling client connections, managing multiple clients concurrently, dealing with low-level I/O.
-- **Redis Serialization Protocol (RESP)**: understanding and implementing a simple, efficient communication format.
-- **Core data structures**: building robust implementations of strings, lists, hashes, and sets.
-- **Command parsing and execution**: designing a modular, extensible way to handle different Redis commands.
-- **Memory management and performance**: thinking about efficient memory usage and response times.
-- **Testing and robustness**: ensuring stability under various usage patterns and failure modes.
+## 🤖 Architecture Highlights
 
-## Project Goals
+- **Hash table (open addressing)**: For fast key lookup.
+- **AVL tree**: Maintains ordering in ZSets and supports efficient offset-based queries.
+- **Min-heap**: Efficient TTL expiration with O(log N) updates and O(1) access to next expiry.
+- **Thread pool**: Offload expensive clean-up tasks to background threads.
+- **Event loop**: The heart of the server, coordinating IO and timers with zero blocking.
 
-- Implement a working subset of Redis commands (`SET`, `GET`, `DEL`, `EXISTS`, `PING`, `ECHO`, etc.)
-- Support multiple concurrent clients
-- Respect the RESP protocol for communication
-- Write clean, modular, and well-documented code
-- Make it easy to extend with new commands or features
-- Make it with non-blocking I/O using `poll`
+## 🔥 Why This Project?
 
-## Future Improvements
+> *"What I cannot create, I do not understand."* — Richard Feynman
 
-- Add support for more advanced data types (sorted sets, pub/sub, etc.)
-- Implement persistence (AOF/RDB-style storage)
-- Add replication and clustering support
+By replicating a complex production tool like Redis, I challenged myself to:
+- Understand low-level systems (file descriptors, polling, socket programming).
+- Manipulate and design high-performance data structures.
+- Tackle real-world concerns like scalability, latency, and idle timeouts.
+- Implement concurrency via thread pools and inter-thread synchronization.
 
+## 🎯 Project Goals (Achieved)
 
-## How to Run
+- ✅ Handle concurrent clients with `poll()` (non-blocking I/O)
+- ✅ Implement core Redis-like commands (including sorted set logic)
+- ✅ Build from-scratch hash tables, trees, heaps
+- ✅ Implement TTL and idle expiration using timers
+- ✅ Add a thread pool for async operations (like `UNLINK`)
+- ✅ Achieve high extensibility and testability
 
-Instructions will be added as development progresses.
+## 🛠 How to Build and Run
+
+1. **Build the server**
+   ```bash
+   g++ -std=c++11 server.cpp zset.cpp heap.cpp hashtable.cpp avl.cpp thread_pool.cpp -o server
+
+2. **Build the client**
+    ```bash
+    g++ -std=c++11 client.cpp -o client
+
+3. **Execute server**
+    ```bash
+    ./server
+
+4. **Execute the python script**
+    ```bash
+    python3 cmds_test.py
