@@ -25,17 +25,15 @@ Redis is a powerful system that combines **network programming**, **data structu
 
 | Command     | Description                                                |
 |-------------|------------------------------------------------------------|
-| `SET key val`   | Set a key-value pair                                    |
-| `GET key`       | Retrieve a value by key                                 |
-| `DEL key`       | Delete a key                                            |
-| `EXISTS key`    | Check if a key exists                                   |
-| `EXPIRE key ms` | Set a time-to-live (in ms) for a key                    |
-| `TTL key`       | Get remaining TTL in ms                                 |
-| `PERSIST key`   | Remove TTL and make the key permanent                   |
-| `ZADD zset score member` | Insert or update a member in a sorted set     |
-| `ZREM zset member`       | Remove a member from a sorted set              |
-| `ZSCORE zset member`     | Get the score of a member                      |
-| `ZQUERY zset min prefix offset limit` | Query sorted set by range        |
+| `set key val`   | Set a key-value pair                                    |
+| `get key`       | Retrieve a value by key                                 |
+| `del key`       | Delete a key                                            |
+| `pexpire key ms` | Set a time-to-live (in ms) for a key                    |
+| `pttl key`       | Get remaining TTL in ms                                 |
+| `zadd zset score member` | Insert or update a member in a sorted set     |
+| `zrem zset member`       | Remove a member from a sorted set              |
+| `zscore zset member`     | Get the score of a member                      |
+| `zquery zset min prefix offset limit` | Query sorted set by range        |
 
 > 🧪 All of these are tested using a Python test script with expected outputs.
 
